@@ -1,0 +1,19 @@
+.env
+
+# virtual environments (do not commit these)
+venv/
+venv312/
+
+# python junk
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# editor / local
+.cursor/
+
+# model caches if they ever land in this folder
+huggingface_cache/
+*.bin
+*.safetensors

@@ -1,0 +1,44 @@
+{
+    "better-comments.highlightPlainText": false,
+    "better-comments.tags": [
+        {
+            "tag": "*",
+            "color": "#00b894",
+            "strikethrough": false,
+            "underline": false,
+            "backgroundColor": "transparent",
+            "bold": true,
+            "italic": false
+        },
+        {
+            "tag": "?",
+            "color": "#74b9ff",
+            "strikethrough": false,
+            "underline": false,
+            "backgroundColor": "transparent",
+            "bold": false,
+            "italic": false
+        },
+        {
+            "tag": "!",
+            "color": "#ff7675",
+            "strikethrough": false,
+            "underline": false,
+            "backgroundColor": "transparent",
+            "bold": false,
+            "italic": false
+        }
+    ],
+    "python.defaultInterpreterPath": "${workspaceFolder}/venv312/Scripts/python.exe",
+    "python.venvPath": "${workspaceFolder}",
+    "python.venv": "venv312",
+    "cSpell.words": [
+        "dotenv",
+        "genai",
+        "generativeai",
+        "huggingface",
+        "HUGGINGFACEHUB",
+        "langchain",
+        "numpy"
+    ]
+}
