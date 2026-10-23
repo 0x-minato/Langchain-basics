@@ -4,24 +4,33 @@ os.environ["HF_HOME"] = r"D:\huggingface_cache"
 from langchain_huggingface import HuggingFacePipeline, ChatHuggingFace
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_cohere import ChatCohere
+from dotenv import load_dotenv
 from transformers import BitsAndBytesConfig
 
-llm = HuggingFacePipeline.from_model_id(
-    model_id="Qwen/Qwen2.5-3B-Instruct",
-    task="text-generation",
-    model_kwargs={
-        "quantization_config": BitsAndBytesConfig(load_in_4bit=True),
-        "device_map": "auto",
-    },
-    pipeline_kwargs=dict(
-        temperature=0.8,
-        do_sample=True,
-        max_new_tokens=100,
-        return_full_text=False
-    ),
-)
+load_dotenv()
 
-model = ChatHuggingFace(llm=llm)
+# llm = HuggingFacePipeline.from_model_id(
+#     model_id="Qwen/Qwen2.5-3B-Instruct",
+#     task="text-generation",
+#     model_kwargs={
+#         "quantization_config": BitsAndBytesConfig(load_in_4bit=True),
+#         "device_map": "auto",
+#     },
+#     pipeline_kwargs=dict(
+#         temperature=0.8,
+#         do_sample=True,
+#         max_new_tokens=100,
+#         return_full_text=False
+#     ),
+# )
+
+# model = ChatHuggingFace(llm=llm)
+
+model = ChatCohere(
+    model="command-a-03-2025",
+    temperature=0.8
+)
 
 chat_history = []
 

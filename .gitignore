@@ -17,3 +17,6 @@ __pycache__/
 huggingface_cache/
 *.bin
 *.safetensors
+
+# local chroma persist
+vector_store/chroma_db/

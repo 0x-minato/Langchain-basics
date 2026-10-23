@@ -185,6 +185,65 @@ chunks = splitter.split_text(python_source)
 
 ---
 
+## 4. Semantic meaning-based splitting
+
+Splits where the **topic changes**, not where a newline or heading happens. Consecutive sentences are embedded; a cut is made when similarity **drops** (the next sentence is about something else).
+
+LangChain class: **`SemanticChunker`** (`langchain_experimental.text_splitter`)
+
+Needs an **embedding model** (the same idea as `embeddedModels/`): MiniLM locally, or OpenAI / Cohere in the cloud.
+
+Flow:
+
+```text
+text → sentences → embed each sentence → cosine vs the next one
+                                          ↓
+                         similar  → keep in the same chunk
+                         drop     → start a new chunk
+```
+
+Example: a paragraph about Kohli batting, then one about Bumrah yorkers. Recursive splitting might glue them because they fit in `chunk_size`. Semantic splitting cuts between them because the vectors jump.
+
+You tune **how sharp** a drop counts as a boundary (`breakpoint_threshold_type`: percentile, standard deviation, …). There is no hard `chunk_size` in the same way — chunks grow until meaning shifts. Overlap is usually not the main knob; the breakpoint is.
+
+This is **not** a tree and **not** merge sort. It is “split on embedding distance.”
+
+### Advantages
+
+- Chunks follow **ideas**, so RAG hits a full thought instead of half a paragraph plus an unrelated next one
+- Works on prose with **no** markdown/HTML (articles, transcripts, PDFs that lost headings)
+- Often the best retrieval quality of the four methods when embeddings are decent
+- You can reuse the same embedding model you already use for the vector store
+
+### Disadvantages
+
+- Slow and **not free** on large corpora — every sentence is embedded before you even store chunks
+- Chunk sizes are unpredictable (a 2-sentence aside vs a long on-topic section). Can overflow model context unless you cap / re-split
+- Quality depends on the embedding model. A weak embedder makes bad cuts
+- Extra dependency (`langchain-experimental`) and extra config (breakpoint type/threshold)
+- Overkill for logs, code, or already well-headed docs — use length / document splitters there
+
+### Tiny example
+
+```python
+from langchain_experimental.text_splitter import SemanticChunker
+from langchain_huggingface import HuggingFaceEmbeddings
+
+embeddings = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
+)
+
+splitter = SemanticChunker(
+    embeddings,
+    breakpoint_threshold_type="percentile",  # or "standard_deviation"
+)
+chunks = splitter.split_text(text)
+```
+
+Install: `pip install langchain-experimental`
+
+---
+
 ## Which one to use?
 
 | Situation | Prefer |
@@ -193,6 +252,6 @@ chunks = splitter.split_text(python_source)
 | Must never exceed a hard size | Length-based (or token splitter) |
 | Articles, PDFs, blogs, notes | Structure-based (recursive) |
 | Markdown / HTML / JSON / source code | Document-based (headers, language, JSON) |
-| Best retrieval quality, extra cost OK | Semantic splitting (later) |
+| Prose with topic shifts, best RAG quality | Semantic (embed sentences, cut on similarity drop) |
 
-**Rule of thumb:** if the file has real headings or code structure, use a **document** splitter. Otherwise start with `RecursiveCharacterTextSplitter`. Drop to `CharacterTextSplitter` only when the text has no usable structure.
+**Rule of thumb:** headings/code → **document** splitter. Plain articles → `RecursiveCharacterTextSplitter`. Need meaning-aware chunks and you can pay for embeddings → **semantic**. No structure at all → `CharacterTextSplitter`.
