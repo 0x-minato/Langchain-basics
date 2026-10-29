@@ -34,11 +34,13 @@
     "python.venv": "venv312",
     "cSpell.words": [
         "dotenv",
+        "FAISS",
         "genai",
         "generativeai",
         "huggingface",
         "HUGGINGFACEHUB",
         "langchain",
-        "numpy"
+        "numpy",
+        "vectorstores"
     ]
 }
