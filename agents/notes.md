@@ -187,7 +187,7 @@ def get_whether_data(city: str) -> str:      # weather API JSON
 
 Two tools in **both** `create_react_agent(..., tools=...)` and `AgentExecutor(..., tools=...)`. The list must match. Search is for “what is the capital”; weather is for live conditions. The Antarctica question often **never calls weather** — no capital city — which is a valid agent choice, not a bug.
 
-Keep the weather **API key in `.env`**, not in the URL (same lesson as the FX key in `currency_converter.py`).
+Keep the weather **API key in** `.env`, not in the URL (same lesson as the FX key in `currency_converter.py`).
 
 `DuckDuckGoSearchRun` still warns that `langchain-community` is sunsetting. Needs `pip install -U ddgs`.
 
@@ -222,7 +222,7 @@ agent_executor = AgentExecutor(
 )
 ```
 
-`create_react_agent` lives in **`langchain_classic`**, not `langchain.agents`. Current `langchain.agents` only exports `create_agent` (tool-calling graph).
+`create_react_agent` lives in `langchain_classic`, not `langchain.agents`. Current `langchain.agents` only exports `create_agent` (tool-calling graph).
 
 `temperature=0` keeps Action lines stable. Verbose is easier with `python -u` (unbuffered) so you see the chain while Cohere thinks.
 
@@ -230,11 +230,11 @@ agent_executor = AgentExecutor(
 
 ```python
 agent_executor.invoke({
-    "input": "find the capital of Antarctica and find its whether condition"
+    "input": "find the capital of Antarctica and find its whether condition"ZX
 })
 ```
 
-Input key is **`input`**, not `messages`. Output dict has `input` and `output` (the Final Answer string).
+Input key is `input`, not `messages`. Output dict has `input` and `output` (the Final Answer string).
 
 A real run looked like: search “Does Antarctica have a capital?” → Observation snippets → Final Answer: no capital, so no weather. Search ran **twice** on a messy first parse; `handle_parsing_errors` absorbed the junk `O` after Action Input.
 
