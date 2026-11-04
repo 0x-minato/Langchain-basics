@@ -20,3 +20,7 @@ huggingface_cache/
 
 # local chroma persist
 vector_store/chroma_db/
+
+# local FAISS indexes
+rag/faiss_islr/
+langgraph/langsmith/faiss_islr/

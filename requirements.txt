@@ -28,3 +28,6 @@ scikit-learn
 # Vector stores
 langchain-chroma
 chromadb
+
+# PDF loaders (PyPDFLoader)
+pypdf
