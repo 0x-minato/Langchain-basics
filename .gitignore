@@ -3,6 +3,8 @@
 # virtual environments (do not commit these)
 venv/
 venv312/
+.venv/
+node_modules/
 
 # python junk
 __pycache__/

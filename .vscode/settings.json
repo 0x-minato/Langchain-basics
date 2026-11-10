@@ -35,6 +35,7 @@
     "cSpell.words": [
         "dotenv",
         "FAISS",
+        "fastmcp",
         "genai",
         "generativeai",
         "huggingface",

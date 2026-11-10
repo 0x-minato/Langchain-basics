@@ -1,0 +1,11 @@
+{
+  "name": "mcp-servers",
+  "private": true,
+  "description": "Pin MCP Inspector to a Node 18-compatible version for `uv run fastmcp dev`.",
+  "scripts": {
+    "dev": "npx --no-install @modelcontextprotocol/inspector ../venv312/Scripts/python.exe main.py"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/inspector": "0.16.8"
+  }
+}
