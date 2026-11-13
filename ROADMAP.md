@@ -14,7 +14,8 @@ Folders that are **notes only** (`text_splitting/`, `retrievers/`, `rag/`, some 
 Python types → call a model → chat + parsers → LCEL chains
     → load → split → embed → store → retrieve → RAG app
     → tools → agents → LangSmith traces
-    → LangGraph graphs → persistence → Streamlit chatbot
+    → LangGraph graphs → persistence
+    → MCP servers → Streamlit chatbot (search + math MCP + PDF RAG)
 ```
 
 ---
@@ -39,7 +40,9 @@ If you already ran most of this once, this is the **spine**. Skip the rest unles
 | 12 | `langgraph/langsmith/ragv2.py` | `@traceable` tree in LangSmith |
 | 13 | `langgraph/workflows/iterative.ipynb` | graph cycle |
 | 14 | `langgraph/persistence/chatbot.ipynb` | `thread_id` memory |
-| 15 | `langgraph/chatbot/frontend.py` | Streamlit UI |
+| 15 | `mcp_servers/main.py` | FastMCP tools over stdio |
+| 16 | `langgraph/chatbot/rag.ipynb` | PDF RAG as a LangGraph `@tool` |
+| 17 | `langgraph/chatbot/frontend.py` | Streamlit: search + MCP math + PDF RAG |
 
 ---
 
@@ -226,16 +229,43 @@ Not a new shape. After each node, LangGraph writes a **checkpoint**.
 
 Companion: [`langgraph/persistence/notes.md`](langgraph/persistence/notes.md)
 
-### 7d — Product: Streamlit chatbot
+### 7d — PDF RAG as a graph tool (notebook)
 
-Same chat graph as the persistence notebook, plus SQLite + a UI.
+Same `chat_node` ⇄ `tools` cycle as a ReAct agent, but the tool is a FAISS retriever over a PDF.
 
 | Order | File | What to take away | Then |
 | --- | --- | --- | --- |
-| 7.12 | [`langgraph/chatbot/chatbot.py`](langgraph/chatbot/chatbot.py) | Graph + `SqliteSaver` + `thread_id` | 7.13 |
-| 7.13 | [`langgraph/chatbot/frontend.py`](langgraph/chatbot/frontend.py) | Streamlit sidebar threads, `stream` tokens | done |
+| 7.12 | [`langgraph/chatbot/rag.ipynb`](langgraph/chatbot/rag.ipynb) | Load → split → **local MiniLM** (Cohere trial embed quota dies on ISLR) → `rag_tool(query: str)` → `bind_tools` / `ToolNode`. Cohere **requires type hints** on tool args. | Part 8 |
 
-LangSmith can trace these graphs the same way (env vars). Learn graphs here first; traces are Part 6b.
+Do not use `embed-english-v3.0` on the full textbook. Trial keys cap ~100k embed tokens/min.
+
+---
+
+## Part 8 — MCP (tools that live in another process)
+
+An MCP server is a small program that **exposes tools** over stdio. LangGraph does not replace it — `MultiServerMCPClient` **loads those tools** into the same `ToolNode` as DuckDuckGo / RAG.
+
+| Order | File | What to take away | Then |
+| --- | --- | --- | --- |
+| 8.1 | [`mcp_servers/README.md`](mcp_servers/README.md) | `fastmcp dev main.py` (venv312). Never name the project `mcp` or a file `random.py`. | 8.2 |
+| 8.2 | [`mcp_servers/dice.py`](mcp_servers/dice.py) | First FastMCP server (`roll_dice`, `add_numbers`) | 8.3 |
+| 8.3 | [`mcp_servers/expenses.py`](mcp_servers/expenses.py) | SQLite tools; `cur.description` is cursor metadata, not a column | 8.4 |
+| 8.4 | [`mcp_servers/main.py`](mcp_servers/main.py) | Math tools the chatbot actually calls (`add` / `divide` / …) | 8.5 |
+
+Inspector: from `mcp_servers`, `fastmcp dev main.py` (Inspector **0.16.8**). Do **not** `uv run` — it pulls FastMCP 4. Windows Claude Desktop reads `%LOCALAPPDATA%\Claude-Data\claude_pzs8sxrjxfjjc\claude_desktop_config.json`, not `%APPDATA%\Claude`.
+
+### 8b — Product: Streamlit chatbot (graph + MCP + RAG)
+
+Same persistence idea as 7.10, plus tools.
+
+| Order | File | What to take away | Then |
+| --- | --- | --- | --- |
+| 8.5 | [`langgraph/chatbot/chatbot.py`](langgraph/chatbot/chatbot.py) | `AsyncSqliteSaver` + `thread_id`; tools = DuckDuckGo + MCP math (`sys.executable` + local `main.py`) + `rag_tool`; PDF FAISS is **per thread, in memory** | 8.6 |
+| 8.6 | [`langgraph/chatbot/frontend.py`](langgraph/chatbot/frontend.py) | Streamlit: upload PDF, sidebar threads, stream tokens | done |
+
+Cohere gotchas this file already works around: typed tool args; `disable_streaming="tool_calling"` so tool-call ids match `ToolMessage`s; run `astream` on the backend asyncio loop (Streamlit is sync).
+
+If the sidebar says a PDF is indexed but RAG answers “nothing found”, Streamlit **reloaded `chatbot.py`** and wiped `_THREAD_RETRIEVERS`. Re-upload the PDF on that chat (or start New Chat).
 
 Run from repo root:
 
@@ -256,6 +286,8 @@ streamlit run .\langgraph\chatbot\frontend.py
 | `chatModels/chat_templete.py` | Unfinished |
 | `langgraph/langsmith/islr.pdf` | Textbook corpus, not a lesson |
 | `langgraph/langsmith/faiss_islr/` | Saved MiniLM index from `ragv1` / `ragv2` |
+| `mcp_servers/.venv/` `node_modules/` | Local installs for Inspector / uv, not a lesson |
+| `mcp_servers/expenses.db` `langgraph/chatbot/chatbot.db` | Runtime SQLite, not a lesson |
 
 ---
 
@@ -277,5 +309,10 @@ Ask: **which part of the pipe am I in?**
 | “What is p50 / p95?” | same notes, percentiles section |
 | “Why LangGraph if I have LCEL?” | `langgraph/langchain_vs_langgraph/notes.md` |
 | “What is `thread_id`?” | `langgraph/persistence/notes.md` then `chatbot.ipynb` |
+| “What is MCP / FastMCP?” | `mcp_servers/README.md` then `dice.py` |
+| “Cohere `invalid type for field: 'type'`?” | Type every `@tool` arg (`query: str`). See `rag.ipynb` |
+| “Cohere `TOOL_CALLS_MISSING_RESULTS`?” | Tool-call id mismatch; `chatbot.py` uses `disable_streaming="tool_calling"` |
+| “Embed `429` / trial token limit?” | Do not Cohere-embed ISLR. Use MiniLM (`ragv1.py` / `rag.ipynb`) |
+| “RAG says no info but PDF is uploaded?” | Index lives in RAM; re-upload after a Streamlit/module reload |
 
 Setup, keys, and how to run scripts: [`README.md`](README.md).

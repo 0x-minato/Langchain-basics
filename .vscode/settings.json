@@ -33,6 +33,8 @@
     "python.venvPath": "${workspaceFolder}",
     "python.venv": "venv312",
     "cSpell.words": [
+        "ainvoke",
+        "alist",
         "dotenv",
         "FAISS",
         "fastmcp",
