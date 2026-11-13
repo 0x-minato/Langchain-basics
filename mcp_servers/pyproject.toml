@@ -2,7 +2,7 @@
 name = "mcp-servers"
 version = "0.1.0"
 description = "CampusX MCP tutorial servers. Not the official mcp SDK."
-readme = "README.md"
+readme = "notes.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastmcp>=2.3.0rc1,<3",

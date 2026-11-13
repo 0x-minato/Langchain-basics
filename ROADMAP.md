@@ -14,7 +14,7 @@ Folders that are **notes only** (`text_splitting/`, `retrievers/`, `rag/`, some 
 Python types → call a model → chat + parsers → LCEL chains
     → load → split → embed → store → retrieve → RAG app
     → tools → agents → LangSmith traces
-    → LangGraph graphs → persistence
+    → LangGraph graphs → persistence → HITL (interrupt / Command)
     → MCP servers → Streamlit chatbot (search + math MCP + PDF RAG)
 ```
 
@@ -40,9 +40,10 @@ If you already ran most of this once, this is the **spine**. Skip the rest unles
 | 12 | `langgraph/langsmith/ragv2.py` | `@traceable` tree in LangSmith |
 | 13 | `langgraph/workflows/iterative.ipynb` | graph cycle |
 | 14 | `langgraph/persistence/chatbot.ipynb` | `thread_id` memory |
-| 15 | `mcp_servers/main.py` | FastMCP tools over stdio |
-| 16 | `langgraph/chatbot/rag.ipynb` | PDF RAG as a LangGraph `@tool` |
-| 17 | `langgraph/chatbot/frontend.py` | Streamlit: search + MCP math + PDF RAG |
+| 15 | `langgraph/HITL/hitl.ipynb` | `interrupt()` + `Command(resume=...)` |
+| 16 | `mcp_servers/main.py` | FastMCP tools over stdio |
+| 17 | `langgraph/chatbot/rag.ipynb` | PDF RAG as a LangGraph `@tool` |
+| 18 | `langgraph/chatbot/frontend.py` | Streamlit: search + MCP math + PDF RAG |
 
 ---
 
@@ -189,7 +190,7 @@ Companion: [`langgraph/langsmith/notes.md`](langgraph/langsmith/notes.md)
 
 ---
 
-## Part 7 — LangGraph (graphs, then memory, then UI)
+## Part 7 — LangGraph (graphs, then memory, then HITL, then UI)
 
 LangChain is still the bricks (Cohere, prompts, tools). LangGraph is **state + edges + loops**.
 
@@ -229,13 +230,26 @@ Not a new shape. After each node, LangGraph writes a **checkpoint**.
 
 Companion: [`langgraph/persistence/notes.md`](langgraph/persistence/notes.md)
 
-### 7d — PDF RAG as a graph tool (notebook)
+### 7d — Human in the loop (`interrupt` / `Command`)
+
+Same checkpointer as 7c. New idea: **one `invoke` pauses inside a node**, then `Command(resume=...)` wakes the same `thread_id`.
+
+`input()` in a `while` waits **between** invokes. `interrupt()` waits **inside** one invoke. Needs `compile(checkpointer=...)`.
+
+| Order | File | What to take away | Then |
+| --- | --- | --- | --- |
+| 7.12 | [`langgraph/HITL/hitl.ipynb`](langgraph/HITL/hitl.ipynb) | Pause **before** the LLM. Payload is a **dict**; resume `Command(resume={"approved": "yes"/"no"})` | 7.13 |
+| 7.13 | [`langgraph/HITL/chat_bot_hitl.py`](langgraph/HITL/chat_bot_hitl.py) | Pause **inside** `purchase_stock` (not quote lookup). Payload is a **string**. ReAct + `ToolNode` | 7.14 |
+
+On resume the node **restarts from the top** — put side effects **after** `interrupt()`. Companion: [`langgraph/HITL/notes.md`](langgraph/HITL/notes.md)
+
+### 7e — PDF RAG as a graph tool (notebook)
 
 Same `chat_node` ⇄ `tools` cycle as a ReAct agent, but the tool is a FAISS retriever over a PDF.
 
 | Order | File | What to take away | Then |
 | --- | --- | --- | --- |
-| 7.12 | [`langgraph/chatbot/rag.ipynb`](langgraph/chatbot/rag.ipynb) | Load → split → **local MiniLM** (Cohere trial embed quota dies on ISLR) → `rag_tool(query: str)` → `bind_tools` / `ToolNode`. Cohere **requires type hints** on tool args. | Part 8 |
+| 7.14 | [`langgraph/chatbot/rag.ipynb`](langgraph/chatbot/rag.ipynb) | Load → split → **local MiniLM** (Cohere trial embed quota dies on ISLR) → `rag_tool(query: str)` → `bind_tools` / `ToolNode`. Cohere **requires type hints** on tool args. | Part 8 |
 
 Do not use `embed-english-v3.0` on the full textbook. Trial keys cap ~100k embed tokens/min.
 
@@ -247,7 +261,7 @@ An MCP server is a small program that **exposes tools** over stdio. LangGraph do
 
 | Order | File | What to take away | Then |
 | --- | --- | --- | --- |
-| 8.1 | [`mcp_servers/README.md`](mcp_servers/README.md) | `fastmcp dev main.py` (venv312). Never name the project `mcp` or a file `random.py`. | 8.2 |
+| 8.1 | [`mcp_servers/notes.md`](mcp_servers/notes.md) | Why MCP (write tools once, many hosts). `fastmcp dev main.py` (venv312). Never name the project `mcp` or a file `random.py`. | 8.2 |
 | 8.2 | [`mcp_servers/dice.py`](mcp_servers/dice.py) | First FastMCP server (`roll_dice`, `add_numbers`) | 8.3 |
 | 8.3 | [`mcp_servers/expenses.py`](mcp_servers/expenses.py) | SQLite tools; `cur.description` is cursor metadata, not a column | 8.4 |
 | 8.4 | [`mcp_servers/main.py`](mcp_servers/main.py) | Math tools the chatbot actually calls (`add` / `divide` / …) | 8.5 |
@@ -309,7 +323,9 @@ Ask: **which part of the pipe am I in?**
 | “What is p50 / p95?” | same notes, percentiles section |
 | “Why LangGraph if I have LCEL?” | `langgraph/langchain_vs_langgraph/notes.md` |
 | “What is `thread_id`?” | `langgraph/persistence/notes.md` then `chatbot.ipynb` |
-| “What is MCP / FastMCP?” | `mcp_servers/README.md` then `dice.py` |
+| “What is HITL / `interrupt()`?” | `langgraph/HITL/notes.md` then `hitl.ipynb` |
+| “Resume sent a HumanMessage and the buy stayed paused?” | Use `Command(resume=...)`, same `thread_id`. Not a new chat turn |
+| “What is MCP / FastMCP?” | `mcp_servers/notes.md` then `dice.py` |
 | “Cohere `invalid type for field: 'type'`?” | Type every `@tool` arg (`query: str`). See `rag.ipynb` |
 | “Cohere `TOOL_CALLS_MISSING_RESULTS`?” | Tool-call id mismatch; `chatbot.py` uses `disable_streaming="tool_calling"` |
 | “Embed `429` / trial token limit?” | Do not Cohere-embed ISLR. Use MiniLM (`ragv1.py` / `rag.ipynb`) |
