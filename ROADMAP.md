@@ -14,8 +14,9 @@ Folders that are **notes only** (`text_splitting/`, `retrievers/`, `rag/`, some 
 Python types → call a model → chat + parsers → LCEL chains
     → load → split → embed → store → retrieve → RAG app
     → tools → agents → LangSmith traces
-    → LangGraph graphs → persistence → HITL (interrupt / Command)
+    → LangGraph graphs → persistence → HITL → subgraphs
     → MCP servers → Streamlit chatbot (search + math MCP + PDF RAG)
+    → STM (checkpointer) → LTM (store)
 ```
 
 ---
@@ -41,9 +42,12 @@ If you already ran most of this once, this is the **spine**. Skip the rest unles
 | 13 | `langgraph/workflows/iterative.ipynb` | graph cycle |
 | 14 | `langgraph/persistence/chatbot.ipynb` | `thread_id` memory |
 | 15 | `langgraph/HITL/hitl.ipynb` | `interrupt()` + `Command(resume=...)` |
-| 16 | `mcp_servers/main.py` | FastMCP tools over stdio |
-| 17 | `langgraph/chatbot/rag.ipynb` | PDF RAG as a LangGraph `@tool` |
-| 18 | `langgraph/chatbot/frontend.py` | Streamlit: search + MCP math + PDF RAG |
+| 16 | `langgraph/sub-graphs/sub_graph.ipynb` | nested graph, map keys by hand |
+| 17 | `mcp_servers/main.py` | FastMCP tools over stdio |
+| 18 | `langgraph/chatbot/rag.ipynb` | PDF RAG as a LangGraph `@tool` |
+| 19 | `langgraph/chatbot/frontend.py` | Streamlit: search + MCP math + PDF RAG |
+| 20 | `memory/stm.ipynb` | STM = `PostgresSaver` + `thread_id` |
+| 21 | `memory/7_ltm_implementation.ipynb` | LTM = extract facts into a `Store` |
 
 ---
 
@@ -190,7 +194,7 @@ Companion: [`langgraph/langsmith/notes.md`](langgraph/langsmith/notes.md)
 
 ---
 
-## Part 7 — LangGraph (graphs, then memory, then HITL, then UI)
+## Part 7 — LangGraph (graphs, then persistence, HITL, subgraphs, then UI)
 
 LangChain is still the bricks (Cohere, prompts, tools). LangGraph is **state + edges + loops**.
 
@@ -243,13 +247,24 @@ Same checkpointer as 7c. New idea: **one `invoke` pauses inside a node**, then `
 
 On resume the node **restarts from the top** — put side effects **after** `interrupt()`. Companion: [`langgraph/HITL/notes.md`](langgraph/HITL/notes.md)
 
-### 7e — PDF RAG as a graph tool (notebook)
+### 7e — Subgraphs (a graph inside a graph)
+
+Same sequential product (English answer → Hindi). Two ways to nest.
+
+| Order | File | What to take away | Then |
+| --- | --- | --- | --- |
+| 7.14 | [`langgraph/sub-graphs/sub_graph.ipynb`](langgraph/sub-graphs/sub_graph.ipynb) | **Different** schemas. Parent node calls `subgraph.invoke(...)` and maps keys (`answer_eng` ↔ `input_text`) | 7.15 |
+| 7.15 | [`langgraph/sub-graphs/subgraph_shares.ipynb`](langgraph/sub-graphs/subgraph_shares.ipynb) | **Same** `ParentState`. `add_node("translate", subgraph)` — overlapping keys, no mapper | 7.16 |
+
+Companion: [`langgraph/sub-graphs/notes.md`](langgraph/sub-graphs/notes.md)
+
+### 7f — PDF RAG as a graph tool (notebook)
 
 Same `chat_node` ⇄ `tools` cycle as a ReAct agent, but the tool is a FAISS retriever over a PDF.
 
 | Order | File | What to take away | Then |
 | --- | --- | --- | --- |
-| 7.14 | [`langgraph/chatbot/rag.ipynb`](langgraph/chatbot/rag.ipynb) | Load → split → **local MiniLM** (Cohere trial embed quota dies on ISLR) → `rag_tool(query: str)` → `bind_tools` / `ToolNode`. Cohere **requires type hints** on tool args. | Part 8 |
+| 7.16 | [`langgraph/chatbot/rag.ipynb`](langgraph/chatbot/rag.ipynb) | Load → split → **local MiniLM** (Cohere trial embed quota dies on ISLR) → `rag_tool(query: str)` → `bind_tools` / `ToolNode`. Cohere **requires type hints** on tool args. | Part 8 |
 
 Do not use `embed-english-v3.0` on the full textbook. Trial keys cap ~100k embed tokens/min.
 
@@ -275,7 +290,7 @@ Same persistence idea as 7.10, plus tools.
 | Order | File | What to take away | Then |
 | --- | --- | --- | --- |
 | 8.5 | [`langgraph/chatbot/chatbot.py`](langgraph/chatbot/chatbot.py) | `AsyncSqliteSaver` + `thread_id`; tools = DuckDuckGo + MCP math (`sys.executable` + local `main.py`) + `rag_tool`; PDF FAISS is **per thread, in memory** | 8.6 |
-| 8.6 | [`langgraph/chatbot/frontend.py`](langgraph/chatbot/frontend.py) | Streamlit: upload PDF, sidebar threads, stream tokens | done |
+| 8.6 | [`langgraph/chatbot/frontend.py`](langgraph/chatbot/frontend.py) | Streamlit: upload PDF, sidebar threads, stream tokens | Part 9 |
 
 Cohere gotchas this file already works around: typed tool args; `disable_streaming="tool_calling"` so tool-call ids match `ToolMessage`s; run `astream` on the backend asyncio loop (Streamlit is sync).
 
@@ -286,6 +301,37 @@ Run from repo root:
 ```powershell
 streamlit run .\langgraph\chatbot\frontend.py
 ```
+
+CampusX LangGraph also has **CRAG** and **Self-RAG** (grade docs / decide whether to retrieve). They are playlist videos, **not files in this repo**. Naive RAG-as-a-tool is `rag.ipynb`. Do not re-watch loaders → YouTube RAG for those.
+
+---
+
+## Part 9 — Memory (STM checkpointer, LTM store)
+
+`y = f_θ(x)` is still stateless. STM = this **thread’s** `messages`. LTM = this **user’s** facts in a Store. Do not mix `thread_id` and `user_id`.
+
+Companion (lecture + deep dives): [`memory/notes.md`](memory/notes.md). Postgres notebooks need `memory/docker-compose.yml` (`localhost:5442`) and `psycopg[binary]`.
+
+### 9a — Short-term (this conversation)
+
+| Order | File | What to take away | Then |
+| --- | --- | --- | --- |
+| 9.1 | [`memory/stm.ipynb`](memory/stm.ipynb) | `PostgresSaver` + `thread_id`. Thread-1 knows the name; thread-2 does not | 9.2 |
+| 9.2 | [`memory/stm_trimming.ipynb`](memory/stm_trimming.ipynb) | `trim_messages` shrinks **x**; checkpointer still keeps the full log | 9.3 |
+| 9.3 | [`memory/4_stm_deletion.ipynb`](memory/4_stm_deletion.ipynb) | `RemoveMessage(id=…)` actually drops old turns from state | 9.4 |
+| 9.4 | [`memory/5_stm_summarization.ipynb`](memory/5_stm_summarization.ipynb) | Summarize, then `[:-2]` + `RemoveMessage` — **keep** last 2 verbatim | 9.5 |
+
+### 9b — Long-term (this user)
+
+| Order | File | What to take away | Then |
+| --- | --- | --- | --- |
+| 9.5 | [`memory/6_ltm_basics.ipynb`](memory/6_ltm_basics.ipynb) | `InMemoryStore` + namespace `("user", "u1")`. `put` / `get` / `search` | 9.6 |
+| 9.6 | [`memory/7_ltm_implementation.ipynb`](memory/7_ltm_implementation.ipynb) | Read LTM into the system prompt → extract (`with_structured_output`) → skip duplicates → remember then chat | 9.7 |
+| 9.7 | [`memory/8_ltm_postgres.ipynb`](memory/8_ltm_postgres.ipynb) | Same graph, `PostgresStore` — LTM survives kernel restart | done |
+
+`compile(checkpointer=…)` is STM. `compile(store=…)` is LTM. A product graph usually has **both**.
+
+The LangGraph / LangChain playlists end here. Leftovers that are **not** in this repo (paid RAG extras, skip unless you want them): HyDE, RAG Fusion (RRF), rerank, citations, LangSmith/evals playlist, FastAPI around the bot. Graph RAG and multimodal RAG wait.
 
 ---
 
@@ -302,6 +348,7 @@ streamlit run .\langgraph\chatbot\frontend.py
 | `langgraph/langsmith/faiss_islr/` | Saved MiniLM index from `ragv1` / `ragv2` |
 | `mcp_servers/.venv/` `node_modules/` | Local installs for Inspector / uv, not a lesson |
 | `mcp_servers/expenses.db` `langgraph/chatbot/chatbot.db` | Runtime SQLite, not a lesson |
+| `memory/docker-compose.yml` Postgres volume | Runtime DB for STM/LTM notebooks, not a lesson |
 
 ---
 
@@ -325,7 +372,11 @@ Ask: **which part of the pipe am I in?**
 | “What is `thread_id`?” | `langgraph/persistence/notes.md` then `chatbot.ipynb` |
 | “What is HITL / `interrupt()`?” | `langgraph/HITL/notes.md` then `hitl.ipynb` |
 | “Resume sent a HumanMessage and the buy stayed paused?” | Use `Command(resume=...)`, same `thread_id`. Not a new chat turn |
+| “Why nest a graph / map keys?” | `langgraph/sub-graphs/notes.md` then `sub_graph.ipynb` |
 | “What is MCP / FastMCP?” | `mcp_servers/notes.md` then `dice.py` |
+| “STM vs LTM? `thread_id` vs `user_id`?” | `memory/notes.md` — checkpointer vs Store |
+| “`[:-2]` deletes the last two messages?” | No — it is all **except** the last two. See `5_stm_summarization.ipynb` |
+| “`no pq wrapper available`?” | `pip install psycopg[binary]` in `venv312`, restart kernel |
 | “Cohere `invalid type for field: 'type'`?” | Type every `@tool` arg (`query: str`). See `rag.ipynb` |
 | “Cohere `TOOL_CALLS_MISSING_RESULTS`?” | Tool-call id mismatch; `chatbot.py` uses `disable_streaming="tool_calling"` |
 | “Embed `429` / trial token limit?” | Do not Cohere-embed ISLR. Use MiniLM (`ragv1.py` / `rag.ipynb`) |
