@@ -15,6 +15,7 @@ Python types → call a model → chat + parsers → LCEL chains
     → load → split → embed → store → retrieve → RAG app
     → tools → agents → LangSmith traces
     → LangGraph graphs → persistence → HITL → subgraphs
+    → blog agent (router → Send workers → reducer)
     → MCP servers → Streamlit chatbot (search + math MCP + PDF RAG)
     → STM (checkpointer) → LTM (store)
 ```
@@ -43,11 +44,12 @@ If you already ran most of this once, this is the **spine**. Skip the rest unles
 | 14 | `langgraph/persistence/chatbot.ipynb` | `thread_id` memory |
 | 15 | `langgraph/HITL/hitl.ipynb` | `interrupt()` + `Command(resume=...)` |
 | 16 | `langgraph/sub-graphs/sub_graph.ipynb` | nested graph, map keys by hand |
-| 17 | `mcp_servers/main.py` | FastMCP tools over stdio |
-| 18 | `langgraph/chatbot/rag.ipynb` | PDF RAG as a LangGraph `@tool` |
-| 19 | `langgraph/chatbot/frontend.py` | Streamlit: search + MCP math + PDF RAG |
-| 20 | `memory/stm.ipynb` | STM = `PostgresSaver` + `thread_id` |
-| 21 | `memory/7_ltm_implementation.ipynb` | LTM = extract facts into a `Store` |
+| 17 | `langgraph/blog_agent/blog_agent.py` | `Send` workers + reducer subgraph |
+| 18 | `mcp_servers/main.py` | FastMCP tools over stdio |
+| 19 | `langgraph/chatbot/rag.ipynb` | PDF RAG as a LangGraph `@tool` |
+| 20 | `langgraph/chatbot/frontend.py` | Streamlit: search + MCP math + PDF RAG |
+| 21 | `memory/stm.ipynb` | STM = `PostgresSaver` + `thread_id` |
+| 22 | `memory/7_ltm_implementation.ipynb` | LTM = extract facts into a `Store` |
 
 ---
 
@@ -258,13 +260,23 @@ Same sequential product (English answer → Hindi). Two ways to nest.
 
 Companion: [`langgraph/sub-graphs/notes.md`](langgraph/sub-graphs/notes.md)
 
-### 7f — PDF RAG as a graph tool (notebook)
+### 7f — Blog agent (orchestrator → `Send` workers → reducer)
+
+Not a chatbot. One topic in, one markdown file out. Number of sections is **unknown until the planner returns** — that is `Send`, not `RunnableParallel`.
+
+| Order | File | What to take away | Then |
+| --- | --- | --- | --- |
+| 7.16 | [`langgraph/blog_agent/blog_agent.py`](langgraph/blog_agent/blog_agent.py) | Router (closed/hybrid/open book) → optional Tavily → `Plan` → `Send("worker", …)` per task → `operator.add` on `sections` → reducer subgraph (merge + optional Gemini images) | 7.17 |
+
+Uses **ChatOpenAI** `gpt-4.1-mini` (`OPENAI_API_KEY`), not Cohere. Optional `TAVILY_API_KEY` / `GOOGLE_API_KEY`. File compiles `app`; you still `app.invoke({"topic": "...", "as_of": "..."})`. Companion: [`langgraph/blog_agent/notes.md`](langgraph/blog_agent/notes.md)
+
+### 7g — PDF RAG as a graph tool (notebook)
 
 Same `chat_node` ⇄ `tools` cycle as a ReAct agent, but the tool is a FAISS retriever over a PDF.
 
 | Order | File | What to take away | Then |
 | --- | --- | --- | --- |
-| 7.16 | [`langgraph/chatbot/rag.ipynb`](langgraph/chatbot/rag.ipynb) | Load → split → **local MiniLM** (Cohere trial embed quota dies on ISLR) → `rag_tool(query: str)` → `bind_tools` / `ToolNode`. Cohere **requires type hints** on tool args. | Part 8 |
+| 7.17 | [`langgraph/chatbot/rag.ipynb`](langgraph/chatbot/rag.ipynb) | Load → split → **local MiniLM** (Cohere trial embed quota dies on ISLR) → `rag_tool(query: str)` → `bind_tools` / `ToolNode`. Cohere **requires type hints** on tool args. | Part 8 |
 
 Do not use `embed-english-v3.0` on the full textbook. Trial keys cap ~100k embed tokens/min.
 
@@ -349,6 +361,7 @@ The LangGraph / LangChain playlists end here. Leftovers that are **not** in this
 | `mcp_servers/.venv/` `node_modules/` | Local installs for Inspector / uv, not a lesson |
 | `mcp_servers/expenses.db` `langgraph/chatbot/chatbot.db` | Runtime SQLite, not a lesson |
 | `memory/docker-compose.yml` Postgres volume | Runtime DB for STM/LTM notebooks, not a lesson |
+| `langgraph/blog_agent/*.md` `images/` | Generated blog output, not a lesson |
 
 ---
 
@@ -373,6 +386,8 @@ Ask: **which part of the pipe am I in?**
 | “What is HITL / `interrupt()`?” | `langgraph/HITL/notes.md` then `hitl.ipynb` |
 | “Resume sent a HumanMessage and the buy stayed paused?” | Use `Command(resume=...)`, same `thread_id`. Not a new chat turn |
 | “Why nest a graph / map keys?” | `langgraph/sub-graphs/notes.md` then `sub_graph.ipynb` |
+| “What is `Send` / why not `add_edge` to worker?” | `langgraph/blog_agent/notes.md` — one worker **per task**, count unknown at compile time |
+| “Only one blog section came back?” | `sections` needs `Annotated[..., operator.add]` or parallel writes clobber |
 | “What is MCP / FastMCP?” | `mcp_servers/notes.md` then `dice.py` |
 | “STM vs LTM? `thread_id` vs `user_id`?” | `memory/notes.md` — checkpointer vs Store |
 | “`[:-2]` deletes the last two messages?” | No — it is all **except** the last two. See `5_stm_summarization.ipynb` |
